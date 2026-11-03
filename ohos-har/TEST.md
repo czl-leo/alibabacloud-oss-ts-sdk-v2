@@ -27,17 +27,15 @@ The log is written to `ohos-har/oss-v2/.test/default/intermediates/test/coverage
 | Job | Runner | What it runs |
 |---|---|---|
 | `harmony-build` | `ubuntu-latest` + `harmonyos-ci-image:v5.0.4` | `typecheck:harmony` and `build:har` (Linux cannot execute Local Test) |
-| `harmony-test` | `windows-latest` | `npm run test:harmony` on every push/PR |
-| `harmony-test-mate60` | self-hosted `[self-hosted, Windows, mate60]` | the same unit tests, then `onDeviceTest` on the USB-connected Mate 60 |
+| `harmony-test` | self-hosted `[self-hosted, Windows, mate60]` | `npm run test:harmony` using the DevEco already installed on that PC |
+| `harmony-test-mate60` | the same runner | the same unit tests, then `onDeviceTest` on the USB-connected Mate 60 |
 
-`harmony-test` needs **`HARMONY_CLT_URL`** as a repository secret or variable: a direct
-download URL for the **Windows** Command Line Tools zip (the file that unpacks to
-`command-line-tools\`). Set it on every GitHub repo that should run the job (your fork and
-the upstream). Optional variable **`HARMONY_CLT_VERSION`** is the cache key when you change
-that zip.
+No Command Line Tools download URL is required. The runner machine must already have DevEco
+Studio or Command Line Tools. This PC's install is `E:\DevEco Studio`.
 
-`harmony-test-mate60` does not run on pull requests (including forks). Trigger it with a push
-to `main` / `dev-*`, or **Run workflow**. The Mate 60 is the device, not the runner:
+`harmony-test` runs for pushes and for pull requests opened inside the same repository.
+Pull requests from other forks are skipped, so that code does not run on the self-hosted PC.
+`harmony-test-mate60` runs only on push and **Run workflow**. The Mate 60 is the device, not the runner:
 
 1. On the Windows PC that has the phone plugged in, install [GitHub Actions runner](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners) with label `mate60`.
 2. Install DevEco Studio or Command Line Tools on that PC; `hvigorw` and `hdc` must be on `PATH`.
@@ -68,8 +66,8 @@ signing passwords into this repository.
 
 ## Failures
 
-- `Linux环境暂不支持单元测试` / hang at `> hvigor Linux`: you are on Linux. Use `windows-latest` or a Windows host.
-- `HARMONY_CLT_URL` missing: add the Windows zip URL as a repo secret.
+- `Linux环境暂不支持单元测试` / hang at `> hvigor Linux`: you are on Linux. Use the Windows self-hosted runner.
+- Job stays queued: the `mate60` runner is offline. Start `run.cmd` in the runner directory, with the Mate 60 PC logged in.
 - `SDK component missing`: do not mix DevEco Studio's `hvigorw` with Command Line Tools' SDK (or the reverse).
 - `hdc` empty / `[Empty]`: cable, USB debugging, or the `mate60` runner is not the PC attached to the phone.
 - Test log not in the job summary: download the `harmony-unit-test-windows` or `harmony-test-mate60` artifact.
