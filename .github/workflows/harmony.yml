@@ -167,8 +167,17 @@ jobs:
           }
       - run: npm run build:har
       - name: Install the har and sample test dependencies
-        run: ohpm install --no-save ../../../alicloud-oss-v2-*.har @ohos/hypium@1.0.19 @ohos/hamock@1.0.0
         working-directory: samples/harmony/entry
+        shell: cmd
+        run: |
+          set "HAR="
+          for %%f in (..\..\..\alicloud-oss-v2-*.har) do set "HAR=%%~ff"
+          if not exist "%HAR%" (
+            echo ::error::Built HAR not found under the repository root.
+            exit /b 1
+          )
+          echo Installing %HAR%
+          ohpm install --no-save "%HAR%" @ohos/hypium@1.0.19 @ohos/hamock@1.0.0
       - name: Run device tests on Mate 60
         run: node scripts/run-harmony-device-test-local.mjs
       - name: Publish unit-test log

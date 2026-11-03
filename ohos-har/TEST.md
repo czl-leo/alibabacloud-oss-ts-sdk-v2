@@ -50,7 +50,7 @@ Device tests are [`samples/harmony/entry/src/ohosTest/`](../samples/harmony/entr
 ```bat
 npm run build:har
 cd samples\harmony\entry
-ohpm install --no-save ..\..\..\alicloud-oss-v2-*.har @ohos\hypium@1.0.19 @ohos\hamock@1.0.0
+for %%f in (..\..\..\alicloud-oss-v2-*.har) do ohpm install --no-save "%%f" @ohos/hypium@1.0.19 @ohos/hamock@1.0.0
 cd ..\..
 npm run test:harmony:device
 ```
