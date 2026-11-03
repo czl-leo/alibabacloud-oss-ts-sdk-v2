@@ -70,6 +70,8 @@
     "typecheck:harmony": "tsc -p tsconfig.harmony.json",
     "lint": "eslint .",
     "test": "vitest run --project unit",
+    "test:harmony": "node scripts/run-harmony-test.mjs",
+    "test:harmony:device": "node scripts/run-harmony-device-test.mjs",
     "test:browser": "vitest run --project browser",
     "test:integration": "vitest run --project integration",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",

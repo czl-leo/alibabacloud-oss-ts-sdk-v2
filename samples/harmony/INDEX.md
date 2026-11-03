@@ -50,6 +50,10 @@ command line, with the HarmonyOS command-line tools on `PATH` and `DEVECO_SDK_HO
 
 ## Verification
 
-Running the samples needs a device; the CI only compiles them, it does not run them.
-[.github/workflows/check-sample-harmony.yml](../../.github/workflows/check-sample-harmony.yml) builds the har, installs it into
-this project and compiles both the sample HAP and the test HAP.
+[.github/workflows/check-sample-harmony.yml](../../.github/workflows/check-sample-harmony.yml) compiles the sample HAP and the
+test HAP on Linux. It does not execute tests.
+
+ArkTS unit tests (no device) and Mate 60 instrumented tests are in
+[.github/workflows/harmony.yml](../../.github/workflows/harmony.yml). How to run them locally,
+how to register the `mate60` self-hosted runner, and how to read a failing job are in
+[ohos-har/TEST.md](../../ohos-har/TEST.md).

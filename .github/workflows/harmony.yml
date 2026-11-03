@@ -5,6 +5,7 @@ on:
     branches: ["main", "dev-*"]
   pull_request:
     branches: ["main", "dev-*"]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,3 +23,167 @@ jobs:
       - run: npm install --no-package-lock
       - run: npm run typecheck:harmony
       - run: npm run build:har
+
+  # Local Test (src/test) is not supported on Linux. GitHub-hosted Windows runs the
+  # Hypium suite in ohos-har/oss-v2/src/test/unit/. Fork PRs use this job as the gate.
+  harmony-test:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Cache DevEco command-line tools
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/deveco
+          key: harmony-clt-windows-${{ vars.HARMONY_CLT_VERSION || 'default' }}
+      - name: Install DevEco command-line tools
+        shell: bash
+        env:
+          HARMONY_CLT_URL: ${{ secrets.HARMONY_CLT_URL || vars.HARMONY_CLT_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HARMONY_CLT_URL}" ]; then
+            echo "::error::Set repository secret HARMONY_CLT_URL to the Windows Command Line Tools zip from https://developer.huawei.com/consumer/cn/download/"
+            exit 1
+          fi
+          root="${RUNNER_TEMP}/deveco"
+          if [ -f "${root}/bin/hvigorw.bat" ]; then
+            echo "DevEco tools restored from cache: ${root}"
+          else
+            curl -fL --retry 3 -o "${RUNNER_TEMP}/clt.zip" "${HARMONY_CLT_URL}"
+            rm -rf "${RUNNER_TEMP}/clt-extract" "${root}"
+            mkdir -p "${RUNNER_TEMP}/clt-extract"
+            tar -xf "${RUNNER_TEMP}/clt.zip" -C "${RUNNER_TEMP}/clt-extract"
+            found="$(find "${RUNNER_TEMP}/clt-extract" -type d -name 'command-line-tools' | head -n 1)"
+            if [ -z "${found}" ]; then
+              echo "::error::Zip did not contain a command-line-tools directory"
+              find "${RUNNER_TEMP}/clt-extract" -maxdepth 3 -print
+              exit 1
+            fi
+            mkdir -p "$(dirname "${root}")"
+            mv "${found}" "${root}"
+            rm -f "${RUNNER_TEMP}/clt.zip"
+          fi
+          echo "DEVECO_ROOT=${root}" >> "${GITHUB_ENV}"
+          echo "DEVECO_SDK_HOME=${root}/sdk" >> "${GITHUB_ENV}"
+          echo "${root}/bin" >> "${GITHUB_PATH}"
+          if [ -f "${root}/tool/node/node.exe" ]; then
+            echo "NODE_HOME=${root}/tool/node" >> "${GITHUB_ENV}"
+            echo "${root}/tool/node" >> "${GITHUB_PATH}"
+          elif [ -f "${root}/tool/node/bin/node.exe" ]; then
+            echo "NODE_HOME=${root}/tool/node" >> "${GITHUB_ENV}"
+            echo "${root}/tool/node/bin" >> "${GITHUB_PATH}"
+          fi
+      - run: npm install --no-package-lock
+      - run: npm run stage:har
+      - name: Install ohpm dependencies
+        working-directory: ohos-har
+        run: ohpm install --all
+      - name: Run ArkTS unit tests
+        run: npm run test:harmony
+      - name: Publish test log
+        if: always()
+        run: |
+          if [ -f ohos-har/oss-v2/.test/default/intermediates/test/coverage_data/test_result.txt ]; then
+            echo "## ArkTS unit tests (windows-latest)" >> "${GITHUB_STEP_SUMMARY}"
+            echo '```' >> "${GITHUB_STEP_SUMMARY}"
+            cat ohos-har/oss-v2/.test/default/intermediates/test/coverage_data/test_result.txt >> "${GITHUB_STEP_SUMMARY}"
+            echo '```' >> "${GITHUB_STEP_SUMMARY}"
+          fi
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: harmony-unit-test-windows
+          path: |
+            ohos-har/oss-v2/.test/default/intermediates/test/coverage_data/test_result.txt
+            ohos-har/oss-v2/.test/default/outputs/test/reports/
+          if-no-files-found: warn
+
+  # Mate 60 is the device, not a GitHub runner. Register a Windows self-hosted
+  # runner with label `mate60` on the PC that has the phone on USB. Skip fork PRs.
+  harmony-test-mate60:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, Windows, mate60]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Locate preinstalled HarmonyOS tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          add_bin() {
+            if [ -d "$1" ]; then
+              echo "$1" >> "${GITHUB_PATH}"
+            fi
+          }
+          add_bin "${HARMONY_CLT_HOME:-}/bin"
+          add_bin "${USERPROFILE}/command-line-tools/bin"
+          add_bin "/c/Program Files/Huawei/command-line-tools/bin"
+          add_bin "/c/Program Files/Tools/command-line-tools/bin"
+          add_bin "/c/Program Files/Huawei/DevEco Studio/tools/hvigor/bin"
+          add_bin "/c/Program Files/Huawei/DevEco Studio/sdk/default/openharmony/toolchains"
+          if [ -n "${DEVECO_SDK_HOME:-}" ]; then
+            add_bin "${DEVECO_SDK_HOME}/default/openharmony/toolchains"
+            add_bin "${DEVECO_SDK_HOME}/openharmony/toolchains"
+          fi
+      - run: npm install --no-package-lock
+      - run: npm run stage:har
+      - name: Install ohpm dependencies
+        working-directory: ohos-har
+        run: ohpm install --all
+      - name: Run ArkTS unit tests
+        run: npm run test:harmony
+      - name: Require Mate 60 on hdc
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v hdc >/dev/null 2>&1 && ! command -v hdc.exe >/dev/null 2>&1; then
+            echo "::error::hdc not on PATH. Install DevEco / command-line-tools on the Mate 60 host."
+            exit 1
+          fi
+          hdc list targets
+          targets="$(hdc list targets 2>/dev/null || true)"
+          echo "${targets}"
+          if echo "${targets}" | grep -qiE '\[Empty\]|^Empty$'; then
+            echo "::error::No HarmonyOS device. Connect Mate 60, enable USB debugging, and authorize this PC."
+            exit 1
+          fi
+          if ! echo "${targets}" | grep -qE '[A-Za-z0-9]'; then
+            echo "::error::No HarmonyOS device. Connect Mate 60, enable USB debugging, and authorize this PC."
+            exit 1
+          fi
+      - run: npm run build:har
+      - name: Install the har and sample test dependencies
+        run: ohpm install --no-save ../../../alicloud-oss-v2-*.har @ohos/hypium@1.0.19 @ohos/hamock@1.0.0
+        working-directory: samples/harmony/entry
+      - name: Run device tests on Mate 60
+        run: node scripts/run-harmony-device-test.mjs
+      - name: Publish unit-test log
+        if: always()
+        shell: bash
+        run: |
+          if [ -f ohos-har/oss-v2/.test/default/intermediates/test/coverage_data/test_result.txt ]; then
+            echo "## ArkTS unit tests (Mate 60 host)" >> "${GITHUB_STEP_SUMMARY}"
+            echo '```' >> "${GITHUB_STEP_SUMMARY}"
+            cat ohos-har/oss-v2/.test/default/intermediates/test/coverage_data/test_result.txt >> "${GITHUB_STEP_SUMMARY}"
+            echo '```' >> "${GITHUB_STEP_SUMMARY}"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: harmony-test-mate60
+          path: |
+            ohos-har/oss-v2/.test/default/intermediates/test/coverage_data/test_result.txt
+            samples/harmony/entry/build/**/*.hap
+          if-no-files-found: warn
