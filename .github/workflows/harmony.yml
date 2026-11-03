@@ -31,40 +31,46 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Windows, mate60]
     timeout-minutes: 60
+    defaults:
+      run:
+        shell: cmd
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
       - name: Locate preinstalled HarmonyOS tools
-        shell: bash
+        shell: powershell
         run: |
-          set -euo pipefail
-          add_bin() {
-            if [ -d "$1" ]; then
-              echo "$1" >> "${GITHUB_PATH}"
-            fi
+          $ErrorActionPreference = 'Stop'
+          function Add-Bin([string]$dir) {
+            if (Test-Path -LiteralPath $dir) {
+              [System.IO.File]::AppendAllText($env:GITHUB_PATH, ($dir + [Environment]::NewLine))
+            }
           }
-          add_bin "/e/DevEco Studio/tools/hvigor/bin"
-          add_bin "/e/DevEco Studio/tools/ohpm/bin"
-          add_bin "/e/DevEco Studio/tools/node"
-          add_bin "/e/DevEco Studio/sdk/default/openharmony/toolchains"
-          if [ -d "/e/DevEco Studio/sdk" ]; then
-            echo "DEVECO_SDK_HOME=/e/DevEco Studio/sdk" >> "${GITHUB_ENV}"
-            echo "NODE_HOME=/e/DevEco Studio/tools/node" >> "${GITHUB_ENV}"
-          fi
-          add_bin "${HARMONY_CLT_HOME:-}/bin"
-          add_bin "${USERPROFILE}/command-line-tools/bin"
-          add_bin "/c/Program Files/Huawei/command-line-tools/bin"
-          add_bin "/c/Program Files/Tools/command-line-tools/bin"
-          add_bin "/c/Program Files/Huawei/DevEco Studio/tools/hvigor/bin"
-          add_bin "/c/Program Files/Huawei/DevEco Studio/tools/ohpm/bin"
-          add_bin "/c/Program Files/Huawei/DevEco Studio/tools/node"
-          add_bin "/c/Program Files/Huawei/DevEco Studio/sdk/default/openharmony/toolchains"
+          Add-Bin 'E:\DevEco Studio\jbr\bin'
+          Add-Bin 'E:\DevEco Studio\tools\hvigor\bin'
+          Add-Bin 'E:\DevEco Studio\tools\ohpm\bin'
+          Add-Bin 'E:\DevEco Studio\tools\node'
+          Add-Bin 'E:\DevEco Studio\sdk\default\openharmony\toolchains'
+          if (Test-Path -LiteralPath 'E:\DevEco Studio\sdk') {
+            [System.IO.File]::AppendAllText($env:GITHUB_ENV, "DEVECO_SDK_HOME=E:\DevEco Studio\sdk$([Environment]::NewLine)")
+            [System.IO.File]::AppendAllText($env:GITHUB_ENV, "NODE_HOME=E:\DevEco Studio\tools\node$([Environment]::NewLine)")
+          }
+          if ($env:HARMONY_CLT_HOME) { Add-Bin (Join-Path $env:HARMONY_CLT_HOME 'bin') }
+          Add-Bin (Join-Path $env:USERPROFILE 'command-line-tools\bin')
+          Add-Bin 'C:\Program Files\Huawei\command-line-tools\bin'
+          Add-Bin 'C:\Program Files\Tools\command-line-tools\bin'
+          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\jbr\bin'
+          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\tools\hvigor\bin'
+          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\tools\ohpm\bin'
+          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\tools\node'
+          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\sdk\default\openharmony\toolchains'
+      - name: Check DevEco tools
+        run: |
+          where node
+          where java
+          where hvigorw
+          where ohpm
+          node -v
+          java -version
       - run: npm install --no-package-lock
       - run: npm run stage:har
       - name: Install ohpm dependencies
@@ -74,14 +80,14 @@ jobs:
         run: npm run test:harmony
       - name: Publish test log
         if: always()
+        shell: cmd
         run: |
-          if [ -f ohos-har/oss-v2/.test/default/intermediates/test/coverage_data/test_result.txt ]; then
-            echo "## ArkTS unit tests (mate60 runner)" >> "${GITHUB_STEP_SUMMARY}"
-            echo '```' >> "${GITHUB_STEP_SUMMARY}"
-            cat ohos-har/oss-v2/.test/default/intermediates/test/coverage_data/test_result.txt >> "${GITHUB_STEP_SUMMARY}"
-            echo '```' >> "${GITHUB_STEP_SUMMARY}"
-          fi
-        shell: bash
+          if exist ohos-har\oss-v2\.test\default\intermediates\test\coverage_data\test_result.txt (
+            echo ## ArkTS unit tests (mate60 runner)>>"%GITHUB_STEP_SUMMARY%"
+            echo ```>>"%GITHUB_STEP_SUMMARY%"
+            type ohos-har\oss-v2\.test\default\intermediates\test\coverage_data\test_result.txt>>"%GITHUB_STEP_SUMMARY%"
+            echo ```>>"%GITHUB_STEP_SUMMARY%"
+          )
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -97,36 +103,46 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, Windows, mate60]
     timeout-minutes: 60
+    defaults:
+      run:
+        shell: cmd
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
       - name: Locate preinstalled HarmonyOS tools
-        shell: bash
+        shell: powershell
         run: |
-          set -euo pipefail
-          add_bin() {
-            if [ -d "$1" ]; then
-              echo "$1" >> "${GITHUB_PATH}"
-            fi
+          $ErrorActionPreference = 'Stop'
+          function Add-Bin([string]$dir) {
+            if (Test-Path -LiteralPath $dir) {
+              [System.IO.File]::AppendAllText($env:GITHUB_PATH, ($dir + [Environment]::NewLine))
+            }
           }
-          add_bin "/e/DevEco Studio/tools/hvigor/bin"
-          add_bin "/e/DevEco Studio/tools/ohpm/bin"
-          add_bin "/e/DevEco Studio/tools/node"
-          add_bin "/e/DevEco Studio/sdk/default/openharmony/toolchains"
-          if [ -d "/e/DevEco Studio/sdk" ]; then
-            echo "DEVECO_SDK_HOME=/e/DevEco Studio/sdk" >> "${GITHUB_ENV}"
-            echo "NODE_HOME=/e/DevEco Studio/tools/node" >> "${GITHUB_ENV}"
-          fi
-          add_bin "${HARMONY_CLT_HOME:-}/bin"
-          add_bin "${USERPROFILE}/command-line-tools/bin"
-          add_bin "/c/Program Files/Huawei/command-line-tools/bin"
-          add_bin "/c/Program Files/Tools/command-line-tools/bin"
-          add_bin "/c/Program Files/Huawei/DevEco Studio/tools/hvigor/bin"
-          add_bin "/c/Program Files/Huawei/DevEco Studio/tools/ohpm/bin"
-          add_bin "/c/Program Files/Huawei/DevEco Studio/tools/node"
-          add_bin "/c/Program Files/Huawei/DevEco Studio/sdk/default/openharmony/toolchains"
+          Add-Bin 'E:\DevEco Studio\jbr\bin'
+          Add-Bin 'E:\DevEco Studio\tools\hvigor\bin'
+          Add-Bin 'E:\DevEco Studio\tools\ohpm\bin'
+          Add-Bin 'E:\DevEco Studio\tools\node'
+          Add-Bin 'E:\DevEco Studio\sdk\default\openharmony\toolchains'
+          if (Test-Path -LiteralPath 'E:\DevEco Studio\sdk') {
+            [System.IO.File]::AppendAllText($env:GITHUB_ENV, "DEVECO_SDK_HOME=E:\DevEco Studio\sdk$([Environment]::NewLine)")
+            [System.IO.File]::AppendAllText($env:GITHUB_ENV, "NODE_HOME=E:\DevEco Studio\tools\node$([Environment]::NewLine)")
+          }
+          if ($env:HARMONY_CLT_HOME) { Add-Bin (Join-Path $env:HARMONY_CLT_HOME 'bin') }
+          Add-Bin (Join-Path $env:USERPROFILE 'command-line-tools\bin')
+          Add-Bin 'C:\Program Files\Huawei\command-line-tools\bin'
+          Add-Bin 'C:\Program Files\Tools\command-line-tools\bin'
+          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\jbr\bin'
+          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\tools\hvigor\bin'
+          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\tools\ohpm\bin'
+          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\tools\node'
+          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\sdk\default\openharmony\toolchains'
+      - name: Check DevEco tools
+        run: |
+          where node
+          where java
+          where hvigorw
+          where ohpm
+          node -v
+          java -version
       - run: npm install --no-package-lock
       - run: npm run stage:har
       - name: Install ohpm dependencies
@@ -135,40 +151,36 @@ jobs:
       - name: Run ArkTS unit tests
         run: npm run test:harmony
       - name: Require Mate 60 on hdc
-        shell: bash
+        shell: powershell
         run: |
-          set -euo pipefail
-          if ! command -v hdc >/dev/null 2>&1 && ! command -v hdc.exe >/dev/null 2>&1; then
-            echo "::error::hdc not on PATH. Install DevEco / command-line-tools on the Mate 60 host."
+          $ErrorActionPreference = 'Stop'
+          $hdc = Get-Command hdc.exe -ErrorAction SilentlyContinue
+          if (-not $hdc) {
+            Write-Host '::error::hdc not on PATH. Install DevEco / command-line-tools on the Mate 60 host.'
             exit 1
-          fi
-          hdc list targets
-          targets="$(hdc list targets 2>/dev/null || true)"
-          echo "${targets}"
-          if echo "${targets}" | grep -qiE '\[Empty\]|^Empty$'; then
-            echo "::error::No HarmonyOS device. Connect Mate 60, enable USB debugging, and authorize this PC."
+          }
+          $targets = (& hdc.exe list targets 2>&1 | Out-String).Trim()
+          Write-Output $targets
+          if ([string]::IsNullOrWhiteSpace($targets) -or $targets -match '(?i)\[Empty\]' -or $targets -match '(?i)^Empty$') {
+            Write-Host '::error::No HarmonyOS device. Connect Mate 60, enable USB debugging, and authorize this PC.'
             exit 1
-          fi
-          if ! echo "${targets}" | grep -qE '[A-Za-z0-9]'; then
-            echo "::error::No HarmonyOS device. Connect Mate 60, enable USB debugging, and authorize this PC."
-            exit 1
-          fi
+          }
       - run: npm run build:har
       - name: Install the har and sample test dependencies
         run: ohpm install --no-save ../../../alicloud-oss-v2-*.har @ohos/hypium@1.0.19 @ohos/hamock@1.0.0
         working-directory: samples/harmony/entry
       - name: Run device tests on Mate 60
-        run: node scripts/run-harmony-device-test.mjs
+        run: node scripts/run-harmony-device-test-local.mjs
       - name: Publish unit-test log
         if: always()
-        shell: bash
+        shell: cmd
         run: |
-          if [ -f ohos-har/oss-v2/.test/default/intermediates/test/coverage_data/test_result.txt ]; then
-            echo "## ArkTS unit tests (Mate 60 host)" >> "${GITHUB_STEP_SUMMARY}"
-            echo '```' >> "${GITHUB_STEP_SUMMARY}"
-            cat ohos-har/oss-v2/.test/default/intermediates/test/coverage_data/test_result.txt >> "${GITHUB_STEP_SUMMARY}"
-            echo '```' >> "${GITHUB_STEP_SUMMARY}"
-          fi
+          if exist ohos-har\oss-v2\.test\default\intermediates\test\coverage_data\test_result.txt (
+            echo ## ArkTS unit tests (Mate 60 host)>>"%GITHUB_STEP_SUMMARY%"
+            echo ```>>"%GITHUB_STEP_SUMMARY%"
+            type ohos-har\oss-v2\.test\default\intermediates\test\coverage_data\test_result.txt>>"%GITHUB_STEP_SUMMARY%"
+            echo ```>>"%GITHUB_STEP_SUMMARY%"
+          )
       - uses: actions/upload-artifact@v4
         if: always()
         with:

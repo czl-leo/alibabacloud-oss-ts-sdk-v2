@@ -31,7 +31,10 @@ The log is written to `ohos-har/oss-v2/.test/default/intermediates/test/coverage
 | `harmony-test-mate60` | the same runner | the same unit tests, then `onDeviceTest` on the USB-connected Mate 60 |
 
 No Command Line Tools download URL is required. The runner machine must already have DevEco
-Studio or Command Line Tools. This PC's install is `E:\DevEco Studio`.
+Studio or Command Line Tools. This PC's install is `E:\DevEco Studio`. The self-hosted jobs use
+that install's Node and JBR, and they use `cmd` because this runner has no Git Bash. The device
+job calls `scripts/run-harmony-device-test-local.mjs`, which borrows an existing debug profile
+from `HARMONY_SIGNING_SOURCE` and restores the sample files afterwards.
 
 `harmony-test` runs for pushes and for pull requests opened inside the same repository.
 Pull requests from other forks are skipped, so that code does not run on the self-hosted PC.
