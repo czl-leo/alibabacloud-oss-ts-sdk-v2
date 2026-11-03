@@ -14,6 +14,10 @@ const SOURCE_BP = process.env.HARMONY_SIGNING_SOURCE
   ?? 'D:\\cases\\CommonAppDevelopment\\build-profile.json5'
 const SOURCE_BUNDLE = process.env.HARMONY_SIGNING_BUNDLE ?? 'com.north.cases.debug'
 
+/**
+ * @param {string} text
+ * @returns {string}
+ */
 function extractSigningBlock(text) {
   const match = /"?signingConfigs"?\s*:/.exec(text)
   if (!match) {
