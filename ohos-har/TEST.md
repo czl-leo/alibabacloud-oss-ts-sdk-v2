@@ -42,8 +42,9 @@ Pull requests from other forks are skipped, so that code does not run on the sel
 
 1. On the Windows PC that has the phone plugged in, install [GitHub Actions runner](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners) with label `mate60`.
 2. Install DevEco Studio or Command Line Tools on that PC; `hvigorw` and `hdc` must be on `PATH`.
-3. Unlock the Mate 60, enable USB debugging, authorize the PC (`hdc list targets` must show the phone).
-4. Debug signing must already work on that machine (the sample `build-profile.json5` has empty `signingConfigs`; DevEco automatic signing on the host is the usual setup).
+3. Start the runner in the logged-on user session. On this PC the task `GitHub Actions Runner mate60` runs `run.cmd` at logon. A Windows service account cannot see the USB phone or this user's debug signing files.
+4. Unlock the Mate 60 and leave the screen on, enable USB debugging, authorize the PC (`hdc list targets` must show the phone).
+5. Debug signing must already work on that machine (the sample `build-profile.json5` has empty `signingConfigs`; DevEco automatic signing on the host is the usual setup).
 
 Device tests are [`samples/harmony/entry/src/ohosTest/`](../samples/harmony/entry/src/ohosTest/):
 
@@ -70,7 +71,8 @@ signing passwords into this repository.
 ## Failures
 
 - `Linux环境暂不支持单元测试` / hang at `> hvigor Linux`: you are on Linux. Use the Windows self-hosted runner.
-- Job stays queued: the `mate60` runner is offline. Start `run.cmd` in the runner directory, with the Mate 60 PC logged in.
+- Job stays queued: the `mate60` runner is offline. Log on to the Mate 60 PC so the logon task starts `run.cmd`, or start it in that user session.
+- `00507003` / unlock screen failed: the Mate 60 screen is locked. Unlock it and keep it awake before `harmony-test-mate60`.
 - `SDK component missing`: do not mix DevEco Studio's `hvigorw` with Command Line Tools' SDK (or the reverse).
 - `hdc` empty / `[Empty]`: cable, USB debugging, or the `mate60` runner is not the PC attached to the phone.
-- Test log not in the job summary: download the `harmony-unit-test-windows` or `harmony-test-mate60` artifact.
+- Test log not in the job summary: download the `harmony-unit-test-windows` or `harmony-test-mate60` artifact. A green run publishes both.
