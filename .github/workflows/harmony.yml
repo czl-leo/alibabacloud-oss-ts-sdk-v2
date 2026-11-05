@@ -24,53 +24,40 @@ jobs:
       - run: npm run typecheck:harmony
       - run: npm run build:har
 
-  # Local Test is unsupported on Linux. This PC is the runner: DevEco is already
-  # installed, so the job does not download Command Line Tools.
-  # Fork pull requests are skipped so untrusted code is not executed on this machine.
+  # OpenHarmony userland from https://github.com/czl-leo/dockerharmony.
+  # GitHub-hosted arm64 runner; the image has no bash, hvigor, or ohpm.
   harmony-test:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Windows, mate60]
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: hqzing/dockerharmony:latest
+      volumes:
+        - /opt/node24:/__e/node24:rw,rshared
     timeout-minutes: 60
     defaults:
       run:
-        shell: cmd
+        shell: sh
     steps:
-      - uses: actions/checkout@v4
-      - name: Locate preinstalled HarmonyOS tools
-        shell: powershell
+      - name: Setup node for actions
         run: |
-          $ErrorActionPreference = 'Stop'
-          function Add-Bin([string]$dir) {
-            if (Test-Path -LiteralPath $dir) {
-              [System.IO.File]::AppendAllText($env:GITHUB_PATH, ($dir + [Environment]::NewLine))
-            }
-          }
-          Add-Bin 'E:\DevEco Studio\jbr\bin'
-          Add-Bin 'E:\DevEco Studio\tools\hvigor\bin'
-          Add-Bin 'E:\DevEco Studio\tools\ohpm\bin'
-          Add-Bin 'E:\DevEco Studio\tools\node'
-          Add-Bin 'E:\DevEco Studio\sdk\default\openharmony\toolchains'
-          if (Test-Path -LiteralPath 'E:\DevEco Studio\sdk') {
-            [System.IO.File]::AppendAllText($env:GITHUB_ENV, "DEVECO_SDK_HOME=E:\DevEco Studio\sdk$([Environment]::NewLine)")
-            [System.IO.File]::AppendAllText($env:GITHUB_ENV, "NODE_HOME=E:\DevEco Studio\tools\node$([Environment]::NewLine)")
-          }
-          if ($env:HARMONY_CLT_HOME) { Add-Bin (Join-Path $env:HARMONY_CLT_HOME 'bin') }
-          Add-Bin (Join-Path $env:USERPROFILE 'command-line-tools\bin')
-          Add-Bin 'C:\Program Files\Huawei\command-line-tools\bin'
-          Add-Bin 'C:\Program Files\Tools\command-line-tools\bin'
-          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\jbr\bin'
-          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\tools\hvigor\bin'
-          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\tools\ohpm\bin'
-          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\tools\node'
-          Add-Bin 'C:\Program Files\Huawei\DevEco Studio\sdk\default\openharmony\toolchains'
-      - name: Check DevEco tools
+          set -eu
+          curl -L -O https://github.com/hqzing/ohos-node/releases/download/v24.2.0/node-v24.2.0-openharmony-arm64.tar.gz
+          mkdir -p /__e/node24/bin /opt
+          tar -zxf node-v24.2.0-openharmony-arm64.tar.gz -C /opt
+          ln -sf /opt/node-v24.2.0-openharmony-arm64/bin/node /__e/node24/bin/node
+          echo "/opt/node-v24.2.0-openharmony-arm64/bin" >> "$GITHUB_PATH"
+      - uses: actions/checkout@v5
+      - name: Record image toolchain
         run: |
-          where node
-          where java
-          where hvigorw
-          where ohpm
-          node -v
-          java -version
+          echo "PATH=$PATH"
+          for cmd in node npm hvigorw ohpm java python3 curl; do
+            if command -v "$cmd" >/dev/null 2>&1; then
+              echo "found $cmd: $(command -v "$cmd")"
+            else
+              echo "missing $cmd"
+            fi
+          done
+          node -v || true
+          npm -v || true
       - run: npm install --no-package-lock
       - run: npm run stage:har
       - name: Install ohpm dependencies
@@ -80,18 +67,18 @@ jobs:
         run: npm run test:harmony
       - name: Publish test log
         if: always()
-        shell: cmd
         run: |
-          if exist ohos-har\oss-v2\.test\default\intermediates\test\coverage_data\test_result.txt (
-            echo ## ArkTS unit tests (mate60 runner)>>"%GITHUB_STEP_SUMMARY%"
-            echo ```>>"%GITHUB_STEP_SUMMARY%"
-            type ohos-har\oss-v2\.test\default\intermediates\test\coverage_data\test_result.txt>>"%GITHUB_STEP_SUMMARY%"
-            echo ```>>"%GITHUB_STEP_SUMMARY%"
-          )
+          result=ohos-har/oss-v2/.test/default/intermediates/test/coverage_data/test_result.txt
+          if [ -f "$result" ]; then
+            echo "## ArkTS unit tests (dockerharmony)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat "$result" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: harmony-unit-test-windows
+          name: harmony-unit-test-dockerharmony
           path: |
             ohos-har/oss-v2/.test/default/intermediates/test/coverage_data/test_result.txt
             ohos-har/oss-v2/.test/default/outputs/test/reports/
